@@ -3,8 +3,7 @@ from rest_framework.response import Response
 from .models import File
 from .serializers import FileSerializer
 from .services import calculate_file_hash
-from django.db.models import Sum
-from django.db.models import Sum, F, Q, Count, IntegerField
+from django.db.models import Sum, Count
 from rest_framework.decorators import action
 
 
