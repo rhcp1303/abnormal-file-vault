@@ -36,7 +36,7 @@ class FileViewSet(viewsets.ModelViewSet):
 
         return Response({
             'unique_storage_used': unique_storage,
-            'total_storage_if_duplicates': total_storage_if_duplicates,
+            'total_storage_if_duplicates': total_storage_if_duplicates+storage_savings,
             'storage_savings': storage_savings,
         }, status=status.HTTP_200_OK)
 

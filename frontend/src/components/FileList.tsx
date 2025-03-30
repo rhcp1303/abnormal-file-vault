@@ -1,14 +1,24 @@
-import React from 'react';
+// frontend/src/components/FileList.tsx
+import React, { useEffect, useState } from 'react';
 import { fileService } from '../services/fileService';
 import { File as FileType } from '../types/file';
 import { DocumentIcon, TrashIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
+interface StorageStatistics {
+  unique_storage_used: number;
+  total_storage_if_duplicates: number;
+  storage_savings: number;
+}
+
 export const FileList: React.FC = () => {
   const queryClient = useQueryClient();
+  const [storageStats, setStorageStats] = useState<StorageStatistics | null>(null);
+  const [storageStatsLoading, setStorageStatsLoading] = useState(true);
+  const [storageStatsError, setStorageStatsError] = useState<Error | null>(null);
 
   // Query for fetching files
-  const { data: files, isLoading, error } = useQuery({
+  const { data: files, isLoading: filesLoading, error: filesError } = useQuery({
     queryKey: ['files'],
     queryFn: fileService.getFiles,
   });
@@ -18,6 +28,7 @@ export const FileList: React.FC = () => {
     mutationFn: fileService.deleteFile,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files'] });
+      fetchStorageStats(); // Re-fetch storage stats after deletion
     },
   });
 
@@ -26,6 +37,24 @@ export const FileList: React.FC = () => {
     mutationFn: ({ fileUrl, filename }: { fileUrl: string; filename: string }) =>
       fileService.downloadFile(fileUrl, filename),
   });
+
+  useEffect(() => {
+    fetchStorageStats();
+  }, []);
+
+  const fetchStorageStats = async () => {
+    setStorageStatsLoading(true);
+    setStorageStatsError(null);
+    try {
+      const data = await fileService.getStorageStatistics();
+      setStorageStats(data);
+    } catch (error: any) {
+      console.error('Error fetching storage stats:', error);
+      setStorageStatsError(error);
+    } finally {
+      setStorageStatsLoading(false);
+    }
+  };
 
   const handleDelete = async (id: string) => {
     try {
@@ -43,7 +72,7 @@ export const FileList: React.FC = () => {
     }
   };
 
-  if (isLoading) {
+  if (filesLoading || storageStatsLoading) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-4">
@@ -58,7 +87,7 @@ export const FileList: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (filesError || storageStatsError) {
     return (
       <div className="p-6">
         <div className="bg-red-50 border-l-4 border-red-400 p-4">
@@ -77,7 +106,9 @@ export const FileList: React.FC = () => {
               </svg>
             </div>
             <div className="ml-3">
-              <p className="text-sm text-red-700">Failed to load files. Please try again.</p>
+              <p className="text-sm text-red-700">Failed to load data. Please try again.</p>
+              {filesError && <p className="text-sm text-red-700">File Load Error: {filesError.message}</p>}
+              {storageStatsError && <p className="text-sm text-red-700">Storage Stats Error: {storageStatsError.message}</p>}
             </div>
           </div>
         </div>
@@ -88,6 +119,22 @@ export const FileList: React.FC = () => {
   return (
     <div className="p-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Uploaded Files</h2>
+
+      {storageStats && (
+        <div className="bg-gray-50 rounded-md p-4 mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Storage Statistics</h3>
+          <p className="text-sm text-gray-700">
+            Unique Storage Used: {(storageStats.unique_storage_used / 1024 / 1024).toFixed(2)} MB
+          </p>
+          <p className="text-sm text-gray-700">
+            Total Storage (including duplicates): {(storageStats.total_storage_if_duplicates / 1024 / 1024).toFixed(2)} MB
+          </p>
+          <p className="text-sm text-gray-700">
+            Storage Savings: {(storageStats.storage_savings / 1024 / 1024).toFixed(2)} MB
+          </p>
+        </div>
+      )}
+
       {!files || files.length === 0 ? (
         <div className="text-center py-12">
           <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
@@ -142,4 +189,4 @@ export const FileList: React.FC = () => {
       )}
     </div>
   );
-}; 
+};

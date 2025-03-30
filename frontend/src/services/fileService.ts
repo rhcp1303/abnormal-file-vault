@@ -3,6 +3,12 @@ import { File as FileType } from '../types/file';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
+interface StorageStatistics {
+  unique_storage_used: number;
+  total_storage_if_duplicates: number;
+  storage_savings: number;
+}
+
 export const fileService = {
   async uploadFile(file: File): Promise<FileType> {
     const formData = new FormData();
@@ -30,7 +36,7 @@ export const fileService = {
       const response = await axios.get(fileUrl, {
         responseType: 'blob',
       });
-      
+
       // Create a blob URL and trigger download
       const blob = new Blob([response.data]);
       const url = window.URL.createObjectURL(blob);
@@ -46,4 +52,14 @@ export const fileService = {
       throw new Error('Failed to download file');
     }
   },
-}; 
+
+  async getStorageStatistics(): Promise<StorageStatistics> {
+    try {
+      const response = await axios.get(`${API_URL}/files/storage_statistics/`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching storage statistics:', error);
+      throw new Error('Failed to fetch storage statistics');
+    }
+  },
+};
