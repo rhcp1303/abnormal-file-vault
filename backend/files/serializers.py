@@ -32,3 +32,13 @@ class FileSerializer(serializers.ModelSerializer):
             return instance
         else:
             raise serializers.ValidationError("Either 'file' or 'related_file' must be provided.")
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        request = self.context.get('request')
+        if request:
+            if instance.file:
+                representation['file'] = request.build_absolute_uri(instance.file.url)
+            elif instance.related_file and instance.related_file.file:
+                representation['file'] = request.build_absolute_uri(instance.related_file.file.url)
+        return representation
