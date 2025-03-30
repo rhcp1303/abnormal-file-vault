@@ -13,9 +13,6 @@ class FileViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def storage_statistics(self, request):
-        """
-        Calculates and returns storage statistics.
-        """
         unique_storage = File.objects.filter(related_file__isnull=True).aggregate(total_size=Sum('size'))[
                              'total_size'] or 0
         total_storage_if_duplicates = File.objects.all().aggregate(total_size=Sum('size'))['total_size'] or 0
@@ -24,7 +21,6 @@ class FileViewSet(viewsets.ModelViewSet):
         ).annotate(
             reference_count=Count('references')
         ).values('id', 'reference_count')
-
         storage_savings = 0
         referenced_file_ids = [item['id'] for item in referenced_counts]
 
