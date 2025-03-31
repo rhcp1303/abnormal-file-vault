@@ -65,10 +65,12 @@ export const FileList: React.FC = () => {
   }, [fileTypeFilter, minSizeFilter, maxSizeFilter, uploadDateMinFilter, uploadDateMaxFilter]);
 
   // Mutation for deleting files
-  const deleteMutation = useMutation({
+   const deleteMutation = useMutation({
     mutationFn: fileService.deleteFile,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['files'] });
+      queryClient.invalidateQueries({ queryKey: ['files'] }).then(() => {
+        refetchFiles(); // Call refetchFiles after invalidation is complete
+      });
       fetchStorageStats();
     },
     onError: (error) => {
