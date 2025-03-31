@@ -5,11 +5,29 @@ from .serializers import FileSerializer
 from .services import calculate_file_hash
 from django.db.models import Sum, Count
 from rest_framework.decorators import action
+from django_filters import FilterSet, filters
+from django_filters.rest_framework import DjangoFilterBackend
+
+
+class FileFilter(FilterSet):
+    original_filename = filters.CharFilter(field_name='original_filename', lookup_expr='icontains')
+    file_type = filters.CharFilter(field_name='file_type', lookup_expr='iexact')
+    min_size = filters.NumberFilter(field_name='size', lookup_expr='gte')
+    max_size = filters.NumberFilter(field_name='size', lookup_expr='lte')
+    uploaded_at_min = filters.DateTimeFilter(field_name='uploaded_at', lookup_expr='gte')
+    uploaded_at_max = filters.DateTimeFilter(field_name='uploaded_at', lookup_expr='lte')
+
+    class Meta:
+        model = File
+        fields = ['original_filename', 'file_type', 'min_size', 'max_size', 'uploaded_at_min', 'uploaded_at_max']
 
 
 class FileViewSet(viewsets.ModelViewSet):
     queryset = File.objects.all()
     serializer_class = FileSerializer
+    filter_backends = [DjangoFilterBackend]
+
+    filterset_class = FileFilter
 
     @action(detail=False, methods=['get'])
     def storage_statistics(self, request):
@@ -36,7 +54,7 @@ class FileViewSet(viewsets.ModelViewSet):
 
         return Response({
             'unique_storage_used': unique_storage,
-            'total_storage_if_duplicates': total_storage_if_duplicates+storage_savings,
+            'total_storage_if_duplicates': total_storage_if_duplicates + storage_savings,
             'storage_savings': storage_savings,
         }, status=status.HTTP_200_OK)
 
