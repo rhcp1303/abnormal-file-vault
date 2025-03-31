@@ -1,15 +1,16 @@
 // frontend/src/components/FileList.tsx
-import React, { useEffect, useState } from 'react';
-import { fileService } from '../services/fileService';
+import React, { useEffect, useState, useMemo } from 'react';
+import { fileService, StorageStatistics } from '../services/fileService';
 import { File as FileType } from '../types/file';
-import { DocumentIcon, TrashIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import {
+  DocumentIcon,
+  TrashIcon,
+  ArrowDownTrayIcon,
+  MagnifyingGlassIcon,
+} from '@heroicons/react/24/outline';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-
-interface StorageStatistics {
-  unique_storage_used: number;
-  total_storage_if_duplicates: number;
-  storage_savings: number;
-}
+import filesize from 'filesize';
+import { format } from 'date-fns';
 
 export const FileList: React.FC = () => {
   const queryClient = useQueryClient();
@@ -17,11 +18,51 @@ export const FileList: React.FC = () => {
   const [storageStatsLoading, setStorageStatsLoading] = useState(true);
   const [storageStatsError, setStorageStatsError] = useState<Error | null>(null);
 
-  // Query for fetching files
-  const { data: files, isLoading: filesLoading, error: filesError } = useQuery({
-    queryKey: ['files'],
-    queryFn: fileService.getFiles,
+  // Search and Filter State
+  const [search, setSearch] = useState('');
+  const [fileTypeFilter, setFileTypeFilter] = useState('');
+  const [minSizeFilter, setMinSizeFilter] = useState<number | undefined>(undefined);
+  const [maxSizeFilter, setMaxSizeFilter] = useState<number | undefined>(undefined);
+  const [uploadDateMinFilter, setUploadDateMinFilter] = useState<string | undefined>(undefined);
+  const [uploadDateMaxFilter, setUploadDateMaxFilter] = useState<string | undefined>(undefined);
+
+
+  // Query for fetching files with search and filters
+  const {
+    data: files,
+    isLoading: filesLoading,
+    error: filesError,
+    refetch: refetchFiles,
+  } = useQuery<FileType[], Error>({ // Explicit type parameters
+    queryKey: [
+      'files',
+      search,
+      fileTypeFilter,
+      minSizeFilter,
+      maxSizeFilter,
+      uploadDateMinFilter,
+      uploadDateMaxFilter,
+    ],
+    queryFn: () =>
+      fileService.getFiles({
+        search: search,
+        file_type: fileTypeFilter,
+        min_size: minSizeFilter,
+        max_size: maxSizeFilter,
+        uploaded_at_min: uploadDateMinFilter,
+        uploaded_at_max: uploadDateMaxFilter,
+      }),
+    // keepPreviousData: true, // Commenting this out for now to see if it resolves the TS error
   });
+
+  // Debounce search to avoid excessive API calls
+  const debouncedSearch = useMemo(() => {
+    const handler = setTimeout(() => {
+      refetchFiles();
+    }, 500); // Adjust debounce time as needed
+    return () => clearTimeout(handler);
+  }, [search, refetchFiles]); // Added refetchFiles as dependency
+
 
   // Mutation for deleting files
   const deleteMutation = useMutation({
@@ -30,17 +71,41 @@ export const FileList: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['files'] });
       fetchStorageStats(); // Re-fetch storage stats after deletion
     },
+    onError: (error) => {
+      console.error('Delete error:', error);
+      // Optionally show an error toast here
+    },
   });
 
   // Mutation for downloading files
   const downloadMutation = useMutation({
     mutationFn: ({ fileUrl, filename }: { fileUrl: string; filename: string }) =>
       fileService.downloadFile(fileUrl, filename),
+    onError: (error) => {
+      console.error('Download error:', error);
+      // Optionally show an error toast here
+    },
   });
 
   useEffect(() => {
     fetchStorageStats();
   }, []);
+
+  useEffect(() => {
+    refetchFiles(); // Refetch files when filters change
+  }, [
+    fileTypeFilter,
+    minSizeFilter,
+    maxSizeFilter,
+    uploadDateMinFilter,
+    uploadDateMaxFilter,
+    refetchFiles, // Added refetchFiles as dependency
+  ]);
+
+  useEffect(() => {
+    debouncedSearch(); // Trigger debounced search
+    return debouncedSearch;
+  }, [search, debouncedSearch]);
 
   const fetchStorageStats = async () => {
     setStorageStatsLoading(true);
@@ -57,10 +122,13 @@ export const FileList: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await deleteMutation.mutateAsync(id);
-    } catch (err) {
-      console.error('Delete error:', err);
+    if (window.confirm('Are you sure you want to delete this file?')) {
+      try {
+        await deleteMutation.mutateAsync(id);
+      } catch (err) {
+        console.error('Delete error:', err);
+        // Optionally show an error toast here
+      }
     }
   };
 
@@ -69,6 +137,7 @@ export const FileList: React.FC = () => {
       await downloadMutation.mutateAsync({ fileUrl, filename });
     } catch (err) {
       console.error('Download error:', err);
+      // Optionally show an error toast here
     }
   };
 
@@ -108,7 +177,9 @@ export const FileList: React.FC = () => {
             <div className="ml-3">
               <p className="text-sm text-red-700">Failed to load data. Please try again.</p>
               {filesError && <p className="text-sm text-red-700">File Load Error: {filesError.message}</p>}
-              {storageStatsError && <p className="text-sm text-red-700">Storage Stats Error: {storageStatsError.message}</p>}
+              {storageStatsError && (
+                <p className="text-sm text-red-700">Storage Stats Error: {storageStatsError.message}</p>
+              )}
             </div>
           </div>
         </div>
@@ -120,33 +191,105 @@ export const FileList: React.FC = () => {
     <div className="p-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Uploaded Files</h2>
 
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label htmlFor="search" className="block text-sm font-medium text-gray-700">
+            Search Filename:
+          </label>
+          <div className="relative mt-1">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+            </div>
+            <input
+              type="text"
+              name="search"
+              id="search"
+              className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
+              placeholder="Search by filename"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="file-type" className="block text-sm font-medium text-gray-700">
+            Filter by File Type:
+          </label>
+          <select
+            id="file-type"
+            className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+            value={fileTypeFilter}
+            onChange={(e) => setFileTypeFilter(e.target.value)}
+          >
+            <option value="">All File Types</option>
+            {/* Dynamically populate options based on available file types if needed */}
+            <option value="application/pdf">PDF</option>
+            <option value="image/jpeg">JPEG</option>
+            <option value="image/png">PNG</option>
+            {/* Add more options as needed */}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Filter by Size:</label>
+          <div className="mt-1 flex space-x-2">
+            <input
+              type="number"
+              className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-1/2 sm:text-sm border-gray-300 rounded-md"
+              placeholder="Min Size (KB)"
+              value={minSizeFilter === undefined ? '' : minSizeFilter}
+              onChange={(e) => setMinSizeFilter(e.target.value === '' ? undefined : parseInt(e.target.value))}
+            />
+            <input
+              type="number"
+              className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-1/2 sm:text-sm border-gray-300 rounded-md"
+              placeholder="Max Size (KB)"
+              value={maxSizeFilter === undefined ? '' : maxSizeFilter}
+              onChange={(e) => setMaxSizeFilter(e.target.value === '' ? undefined : parseInt(e.target.value))}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Filter by Upload Date:</label>
+          <div className="mt-1 flex space-x-2">
+            <input
+              type="date"
+              className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-1/2 sm:text-sm border-gray-300 rounded-md"
+              value={uploadDateMinFilter || ''}
+              onChange={(e) => setUploadDateMinFilter(e.target.value || undefined)}
+            />
+            <input
+              type="date"
+              className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-1/2 sm:text-sm border-gray-300 rounded-md"
+              value={uploadDateMaxFilter || ''}
+              onChange={(e) => setUploadDateMaxFilter(e.target.value || undefined)}
+            />
+          </div>
+        </div>
+      </div>
+
       {storageStats && (
         <div className="bg-gray-50 rounded-md p-4 mb-4">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Storage Statistics</h3>
           <p className="text-sm text-gray-700">
-            Unique Storage Used: {(storageStats.unique_storage_used / 1024 / 1024).toFixed(2)} MB
+            Unique Storage Used: {filesize(storageStats.unique_storage_used)}
           </p>
           <p className="text-sm text-gray-700">
-            Total Storage (including duplicates): {(storageStats.total_storage_if_duplicates / 1024 / 1024).toFixed(2)} MB
+            Total Storage (including duplicates): {filesize(storageStats.total_storage_if_duplicates)}
           </p>
-          <p className="text-sm text-gray-700">
-            Storage Savings: {(storageStats.storage_savings / 1024 / 1024).toFixed(2)} MB
-          </p>
+          <p className="text-sm text-gray-700">Storage Savings: {filesize(storageStats.storage_savings)}</p>
         </div>
       )}
 
-      {!files || files.length === 0 ? (
+      {!files || files?.length === 0 ? (
         <div className="text-center py-12">
           <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No files</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Get started by uploading a file
-          </p>
+          <p className="mt-1 text-sm text-gray-500">Get started by uploading a file</p>
         </div>
       ) : (
         <div className="mt-6 flow-root">
           <ul className="-my-5 divide-y divide-gray-200">
-            {files.map((file) => (
+            {files && files.map((file: FileType) => (
               <li key={file.id} className="py-4">
                 <div className="flex items-center space-x-4">
                   <div className="flex-shrink-0">
@@ -157,10 +300,10 @@ export const FileList: React.FC = () => {
                       {file.original_filename}
                     </p>
                     <p className="text-sm text-gray-500">
-                      {file.file_type} • {(file.size / 1024).toFixed(2)} KB
+                      {file.file_type} • {filesize(file.size)}
                     </p>
                     <p className="text-sm text-gray-500">
-                      Uploaded {new Date(file.uploaded_at).toLocaleString()}
+                      Uploaded {format(new Date(file.uploaded_at), 'MMM d, h:mm a')}
                     </p>
                   </div>
                   <div className="flex space-x-2">

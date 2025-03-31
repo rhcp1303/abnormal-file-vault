@@ -3,10 +3,19 @@ import { File as FileType } from '../types/file';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
-interface StorageStatistics {
+export interface StorageStatistics {
   unique_storage_used: number;
   total_storage_if_duplicates: number;
   storage_savings: number;
+}
+
+interface GetFilesParams {
+  search?: string;
+  file_type?: string;
+  min_size?: number;
+  max_size?: number;
+  uploaded_at_min?: string; // ISO 8601 date string
+  uploaded_at_max?: string; // ISO 8601 date string
 }
 
 export const fileService = {
@@ -22,8 +31,10 @@ export const fileService = {
     return response.data;
   },
 
-  async getFiles(): Promise<FileType[]> {
-    const response = await axios.get(`${API_URL}/files/`);
+  async getFiles(params?: GetFilesParams): Promise<FileType[]> {
+    const response = await axios.get(`${API_URL}/files/`, {
+      params: params,
+    });
     return response.data;
   },
 
