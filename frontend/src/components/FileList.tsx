@@ -1,5 +1,5 @@
 // frontend/src/components/FileList.tsx
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { fileService, StorageStatistics } from '../services/fileService';
 import { File as FileType } from '../types/file';
 import {
@@ -26,14 +26,12 @@ export const FileList: React.FC = () => {
   const [uploadDateMinFilter, setUploadDateMinFilter] = useState<string | undefined>(undefined);
   const [uploadDateMaxFilter, setUploadDateMaxFilter] = useState<string | undefined>(undefined);
 
-
-  // Query for fetching files with search and filters
   const {
     data: files,
     isLoading: filesLoading,
     error: filesError,
     refetch: refetchFiles,
-  } = useQuery<FileType[], Error>({ // Explicit type parameters
+  } = useQuery<FileType[], Error>({
     queryKey: [
       'files',
       search,
@@ -52,28 +50,29 @@ export const FileList: React.FC = () => {
         uploaded_at_min: uploadDateMinFilter,
         uploaded_at_max: uploadDateMaxFilter,
       }),
-    // keepPreviousData: true, // Commenting this out for now to see if it resolves the TS error
+    enabled: false, // Disable initial fetch, will trigger on Enter or initial load
   });
 
-  // Debounce search to avoid excessive API calls
-  const debouncedSearch = useMemo(() => {
-    const handler = setTimeout(() => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
       refetchFiles();
-    }, 500); // Adjust debounce time as needed
-    return () => clearTimeout(handler);
-  }, [search, refetchFiles]); // Added refetchFiles as dependency
+    }
+  };
 
+  // useEffect to fetch data when filters change (excluding search) or on initial load
+  useEffect(() => {
+    refetchFiles();
+  }, [fileTypeFilter, minSizeFilter, maxSizeFilter, uploadDateMinFilter, uploadDateMaxFilter]);
 
   // Mutation for deleting files
   const deleteMutation = useMutation({
     mutationFn: fileService.deleteFile,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files'] });
-      fetchStorageStats(); // Re-fetch storage stats after deletion
+      fetchStorageStats();
     },
     onError: (error) => {
       console.error('Delete error:', error);
-      // Optionally show an error toast here
     },
   });
 
@@ -83,29 +82,12 @@ export const FileList: React.FC = () => {
       fileService.downloadFile(fileUrl, filename),
     onError: (error) => {
       console.error('Download error:', error);
-      // Optionally show an error toast here
     },
   });
 
   useEffect(() => {
     fetchStorageStats();
   }, []);
-
-  useEffect(() => {
-    refetchFiles(); // Refetch files when filters change
-  }, [
-    fileTypeFilter,
-    minSizeFilter,
-    maxSizeFilter,
-    uploadDateMinFilter,
-    uploadDateMaxFilter,
-    refetchFiles, // Added refetchFiles as dependency
-  ]);
-
-  useEffect(() => {
-    debouncedSearch(); // Trigger debounced search
-    return debouncedSearch;
-  }, [search, debouncedSearch]);
 
   const fetchStorageStats = async () => {
     setStorageStatsLoading(true);
@@ -127,7 +109,6 @@ export const FileList: React.FC = () => {
         await deleteMutation.mutateAsync(id);
       } catch (err) {
         console.error('Delete error:', err);
-        // Optionally show an error toast here
       }
     }
   };
@@ -137,7 +118,6 @@ export const FileList: React.FC = () => {
       await downloadMutation.mutateAsync({ fileUrl, filename });
     } catch (err) {
       console.error('Download error:', err);
-      // Optionally show an error toast here
     }
   };
 
@@ -208,6 +188,7 @@ export const FileList: React.FC = () => {
               placeholder="Search by filename"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={handleKeyDown} // Added onKeyDown handler
             />
           </div>
         </div>
@@ -333,3 +314,5 @@ export const FileList: React.FC = () => {
     </div>
   );
 };
+
+export default FileList;
