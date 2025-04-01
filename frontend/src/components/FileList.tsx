@@ -43,7 +43,7 @@ export const FileList: React.FC = () => {
     ],
     queryFn: () =>
       fileService.getFiles({
-        search: search,
+        original_filename: search,
         file_type: fileTypeFilter,
         min_size: minSizeFilter,
         max_size: maxSizeFilter,

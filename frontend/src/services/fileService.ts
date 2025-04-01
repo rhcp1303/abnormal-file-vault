@@ -10,7 +10,7 @@ export interface StorageStatistics {
 }
 
 interface GetFilesParams {
-  search?: string;
+  original_filename?: string;
   file_type?: string;
   min_size?: number;
   max_size?: number;
