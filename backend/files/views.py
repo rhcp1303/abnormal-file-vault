@@ -30,6 +30,11 @@ class FileViewSet(viewsets.ModelViewSet):
     filterset_class = FileFilter
 
     @action(detail=False, methods=['get'])
+    def file_types(self, request):
+        file_types = File.objects.values_list('file_type', flat=True).distinct()
+        return Response(file_types, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
     def storage_statistics(self, request):
         unique_storage = File.objects.filter(related_file__isnull=True).aggregate(total_size=Sum('size'))[
                              'total_size'] or 0
