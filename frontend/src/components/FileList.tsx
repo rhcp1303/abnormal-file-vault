@@ -65,7 +65,7 @@ export const FileList: React.FC = () => {
   }, [fileTypeFilter, minSizeFilter, maxSizeFilter, uploadDateMinFilter, uploadDateMaxFilter]);
 
   // Mutation for deleting files
-   const deleteMutation = useMutation({
+  const deleteMutation = useMutation({
     mutationFn: fileService.deleteFile,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files'] }).then(() => {
@@ -171,8 +171,7 @@ export const FileList: React.FC = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-xl font-semibold text-gray-900 mb-4">Uploaded Files</h2>
-
+      {/* Filter UI */}
       <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label htmlFor="search" className="block text-sm font-medium text-gray-700">
@@ -250,6 +249,7 @@ export const FileList: React.FC = () => {
         </div>
       </div>
 
+      {/* Storage Statistics UI */}
       {storageStats && (
         <div className="bg-gray-50 rounded-md p-4 mb-4">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Storage Statistics</h3>
@@ -263,6 +263,10 @@ export const FileList: React.FC = () => {
         </div>
       )}
 
+      {/* "Uploaded Files" Heading */}
+      <h2 className="text-xl font-semibold text-gray-900 mb-4">Uploaded Files</h2>
+
+      {/* File List or No Files Message */}
       {!files || files?.length === 0 ? (
         <div className="text-center py-12">
           <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
