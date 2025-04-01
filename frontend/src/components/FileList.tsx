@@ -1,5 +1,5 @@
 // frontend/src/components/FileList.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { fileService, StorageStatistics } from '../services/fileService';
 import { File as FileType } from '../types/file';
 import {
@@ -11,6 +11,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import filesize from 'filesize';
 import { format } from 'date-fns';
+import debounce from 'lodash/debounce'; // Import debounce
 
 export const FileList: React.FC = () => {
   const queryClient = useQueryClient();
@@ -26,11 +27,13 @@ export const FileList: React.FC = () => {
   const [uploadDateMinFilter, setUploadDateMinFilter] = useState<string | undefined>(undefined);
   const [uploadDateMaxFilter, setUploadDateMaxFilter] = useState<string | undefined>(undefined);
 
+
+
   const {
     data: files,
     isLoading: filesLoading,
     error: filesError,
-    refetch: refetchFiles,
+    refetch: innerRefetchFiles, // Rename to avoid shadowing
   } = useQuery<FileType[], Error>({
     queryKey: [
       'files',
@@ -53,16 +56,44 @@ export const FileList: React.FC = () => {
     enabled: false, // Disable initial fetch, will trigger on Enter or initial load
   });
 
+  // Assign the inner refetch to the outer refetchFiles
+  const refetchFiles = innerRefetchFiles;
+
+   // Debounced refetch for size filters
+  const debouncedRefetchFiles = useCallback(
+    debounce(() => {
+      refetchFiles();
+    }, 1000),
+    [refetchFiles]
+  );
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       refetchFiles();
     }
   };
 
-  // useEffect to fetch data when filters change (excluding search) or on initial load
+  const handleMinSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newMinSize = e.target.value === '' ? undefined : parseInt(e.target.value);
+    setMinSizeFilter(newMinSize);
+    debouncedRefetchFiles();
+  };
+
+  const handleMaxSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newMaxSize = e.target.value === '' ? undefined : parseInt(e.target.value);
+    setMaxSizeFilter(newMaxSize);
+    debouncedRefetchFiles();
+  };
+
+  // useEffect to fetch data when filters change (excluding size, which is debounced)
   useEffect(() => {
     refetchFiles();
-  }, [fileTypeFilter, minSizeFilter, maxSizeFilter, uploadDateMinFilter, uploadDateMaxFilter]);
+  }, [fileTypeFilter, uploadDateMinFilter, uploadDateMaxFilter]);
+
+  // useEffect to trigger debounced refetch when size filters change
+  useEffect(() => {
+    debouncedRefetchFiles();
+  }, [minSizeFilter, maxSizeFilter, debouncedRefetchFiles]);
 
   // Mutation for deleting files
   const deleteMutation = useMutation({
@@ -219,14 +250,14 @@ export const FileList: React.FC = () => {
               className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-1/2 sm:text-sm border-gray-300 rounded-md"
               placeholder="Min Size (KB)"
               value={minSizeFilter === undefined ? '' : minSizeFilter}
-              onChange={(e) => setMinSizeFilter(e.target.value === '' ? undefined : parseInt(e.target.value))}
+              onChange={handleMinSizeChange} // Use the new handler
             />
             <input
               type="number"
               className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-1/2 sm:text-sm border-gray-300 rounded-md"
               placeholder="Max Size (KB)"
               value={maxSizeFilter === undefined ? '' : maxSizeFilter}
-              onChange={(e) => setMaxSizeFilter(e.target.value === '' ? undefined : parseInt(e.target.value))}
+              onChange={handleMaxSizeChange} // Use the new handler
             />
           </div>
         </div>
