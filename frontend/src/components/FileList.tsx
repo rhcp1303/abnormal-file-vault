@@ -26,8 +26,20 @@ export const FileList: React.FC = () => {
   const [maxSizeFilter, setMaxSizeFilter] = useState<number | undefined>(undefined);
   const [uploadDateMinFilter, setUploadDateMinFilter] = useState<string | undefined>(undefined);
   const [uploadDateMaxFilter, setUploadDateMaxFilter] = useState<string | undefined>(undefined);
+  const [availableFileTypes, setAvailableFileTypes] = useState<string[]>([]);
 
+  const fetchAvailableFileTypes = async () => {
+    try {
+      const response = await fileService.getFileTypes();
+      setAvailableFileTypes(response);
+    } catch (error) {
+      console.error("Error fetching available file types:", error);
+    }
+  };
 
+  useEffect(() => {
+    fetchAvailableFileTypes();
+  }, []);
 
   const {
     data: files,
@@ -53,13 +65,13 @@ export const FileList: React.FC = () => {
         uploaded_at_min: uploadDateMinFilter,
         uploaded_at_max: uploadDateMaxFilter,
       }),
-    enabled: false, // Disable initial fetch, will trigger on Enter or initial load
+    enabled: true, // Enable initial fetch
   });
 
   // Assign the inner refetch to the outer refetchFiles
   const refetchFiles = innerRefetchFiles;
 
-   // Debounced refetch for size filters
+  // Debounced refetch for size filters
   const debouncedRefetchFiles = useCallback(
     debounce(() => {
       refetchFiles();
@@ -67,33 +79,35 @@ export const FileList: React.FC = () => {
     [refetchFiles]
   );
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      refetchFiles();
-    }
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearch(e.target.value);
+  };
+
+  const handleFileTypeFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setFileTypeFilter(e.target.value);
   };
 
   const handleMinSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newMinSize = e.target.value === '' ? undefined : parseInt(e.target.value);
     setMinSizeFilter(newMinSize);
-    debouncedRefetchFiles();
   };
 
   const handleMaxSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newMaxSize = e.target.value === '' ? undefined : parseInt(e.target.value);
     setMaxSizeFilter(newMaxSize);
-    debouncedRefetchFiles();
   };
 
-  // useEffect to fetch data when filters change (excluding size, which is debounced)
+  const handleUploadDateMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUploadDateMinFilter(e.target.value || undefined);
+  };
+
+  const handleUploadDateMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUploadDateMaxFilter(e.target.value || undefined);
+  };
+
   useEffect(() => {
     refetchFiles();
-  }, [fileTypeFilter, uploadDateMinFilter, uploadDateMaxFilter]);
-
-  // useEffect to trigger debounced refetch when size filters change
-  useEffect(() => {
-    debouncedRefetchFiles();
-  }, [minSizeFilter, maxSizeFilter, debouncedRefetchFiles]);
+  }, [search, fileTypeFilter, minSizeFilter, maxSizeFilter, uploadDateMinFilter, uploadDateMaxFilter]);
 
   // Mutation for deleting files
   const deleteMutation = useMutation({
@@ -219,8 +233,8 @@ export const FileList: React.FC = () => {
               className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
               placeholder="Search by filename"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={handleKeyDown} // Added onKeyDown handler
+              onChange={handleSearchChange}
+              onKeyDown={() => refetchFiles()}
             />
           </div>
         </div>
@@ -232,14 +246,14 @@ export const FileList: React.FC = () => {
             id="file-type"
             className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
             value={fileTypeFilter}
-            onChange={(e) => setFileTypeFilter(e.target.value)}
+            onChange={handleFileTypeFilterChange}
           >
             <option value="">All File Types</option>
-            {/* Dynamically populate options based on available file types if needed */}
-            <option value="application/pdf">PDF</option>
-            <option value="image/jpeg">JPEG</option>
-            <option value="image/png">PNG</option>
-            {/* Add more options as needed */}
+            {availableFileTypes.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
           </select>
         </div>
         <div>
@@ -250,14 +264,14 @@ export const FileList: React.FC = () => {
               className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-1/2 sm:text-sm border-gray-300 rounded-md"
               placeholder="Min Size (KB)"
               value={minSizeFilter === undefined ? '' : minSizeFilter}
-              onChange={handleMinSizeChange} // Use the new handler
+              onChange={handleMinSizeChange}
             />
             <input
               type="number"
               className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-1/2 sm:text-sm border-gray-300 rounded-md"
               placeholder="Max Size (KB)"
               value={maxSizeFilter === undefined ? '' : maxSizeFilter}
-              onChange={handleMaxSizeChange} // Use the new handler
+              onChange={handleMaxSizeChange}
             />
           </div>
         </div>
@@ -268,13 +282,13 @@ export const FileList: React.FC = () => {
               type="date"
               className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-1/2 sm:text-sm border-gray-300 rounded-md"
               value={uploadDateMinFilter || ''}
-              onChange={(e) => setUploadDateMinFilter(e.target.value || undefined)}
+              onChange={handleUploadDateMinChange}
             />
             <input
               type="date"
               className="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-1/2 sm:text-sm border-gray-300 rounded-md"
               value={uploadDateMaxFilter || ''}
-              onChange={(e) => setUploadDateMaxFilter(e.target.value || undefined)}
+              onChange={handleUploadDateMaxChange}
             />
           </div>
         </div>

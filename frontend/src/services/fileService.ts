@@ -73,4 +73,15 @@ export const fileService = {
       throw new Error('Failed to fetch storage statistics');
     }
   },
+
+  // Add the getFileTypes method here
+  async getFileTypes(): Promise<string[]> {
+    try {
+      const response = await axios.get(`${API_URL}/files/file_types/`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching file types:', error);
+      return []; // Or throw an error if you want to handle it differently
+    }
+  },
 };
